@@ -1,0 +1,2 @@
+
+Inspired by [[http://www.hashcollision.org/brainfudge/][brainfudge]].
