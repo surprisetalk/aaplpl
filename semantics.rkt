@@ -244,19 +244,39 @@
 
 ;; ≢ EQUAL UNDERBAR SLASH
 
+(define equal-underbar (function null (compose boolean->int not eq?)))
 
 ;; === STRUCTURAL ===
+
 ;; ⍴  RHO
+
 ;; ,  COMMA
+
 ;; ⍪  COMMA BAR
+
 ;; ⌽  CIRCLE STILE
+
 ;; ⊖  CIRCLE BAR
+
 ;; ⍉  CIRCRLE BACKSLASH
+
 ;; ↑  UP ARROW
+
 ;; ↓  DOWN ARROW
+
 ;; ⊂  LEFT SHOE
+
 ;; ≡  EQUAL UNDERBAR
+
 ;; ∊  EPSILON
+
+;; TODO: make sure the array is flattened in the right order
+(define epsilon (function flatten membership))
+(define (membership X Y) 0)
+;; TODO: the result is always the same shape as the left-hand argument
+  ;; (cond [(scalar? Y) (error "membership: Y must be a vector")]
+  ;;       [(scalar? X) (boolean->int (member X Y))]
+  ;;       [else (map (curryr (compose boolean->int member) Y) X)]))
 
 ;; === SELECTION & SETS ===
 ;; ⌷  SQUAD
