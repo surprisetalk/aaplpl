@@ -1,58 +1,15 @@
 
 #lang racket
 
-;; TODO
-;; (require rackunit)                ;; for unit testing
 (require math)
 
+(provide (all-defined-out))
 
 ;; === NOTES ===
-
-;; function reference, starting at pg 91: http://microapl.com/apl/APLXLangRef.pdf 
-
-;; http://www.sacrideo.us/apl-a-day-2-arrays-values/
-
-#|
-    Data in APL is arranged in arrays. 
-    An array is a collection of data with a number of dimensions (rank) and a number of elements in each dimension (shape). 
-    Some or all of the elements may themselves be arrays, making the array a nested array with a third property, depth.
-|#
-  
-#|
-    Rank       Name        Dimensions
-    0          Scalar      None (one element only)
-    1          Vector      1    (elements)
-    2          Matrix      2    (rows and columns)
-    3                      3    (planes, rows, and columns)
-    4                      4    (blocks, planes, rows, and columns)
-|#
-  
-#|
-    Depth      Description
-    0          Simple scalar
-    1          Simple array
-    2          Deepest element in the array is of depth 1
-    3          Deepest element in the array is of depth 2
-    .
-    n          Deepest element in the array is of depth n-1
-|#
-  
-#|
-    Certain functions require the addition of 'fill' elements to arrays, for example the functions ↑ ('take'), \ ('expand') and / ('replicate'). 
-    These function can add extra elements to an existing array; the prototype is used to determine the type and shape of the extra elements.
-
-    Array Type             Fill Element
-    Numeric                Zero
-    Character              Space
-    Nested or mixed        Prototype or first element, with numbers replaced by zeroes and characters by spaces
-|#
 
 
 ;; === META ===
 
-(provide (all-defined-out))
-
-;; TODO: explore the equivalence of one-element arrays and scalars
 (define (function [monad null] [dyad null])
   (case-lambda
     [()    (error "no arguments given")]
@@ -68,48 +25,44 @@
 ;; moderates a function
 ;; (define (operator a-function)
 
-(define (monad-scalar-guard f)
-  (λ (X) (if (list? X)
-             (map f X)
-             (f X))))
 
-;; TODO: clean this up
+;; === GUARDS ===
+
+(define (scalar? Y)
+  (not (array? Y)))
+
+(define (monad-scalar-guard f)
+  (λ (Y) (if (array? Y)
+             (array-map f Y)
+             (f Y))))
+
 (define (dyad-scalar-guard f)
   (λ (X Y)
-    (cond [(and (scalar? X) (scalar? Y)) (f X Y)]
-          [(scalar? X) (map-deep (curry f X) Y)]
-          [(scalar? Y) (map-deep (curryr f Y) X)]
-          [(same-length? X Y) (map (λ (XY) ((dyad-scalar-guard f)
-                                            (car XY)
-                                            (cdr XY)))
-                                   (zip X Y))]
+    (cond [(and (scalar? X) (scalar? Y))  (f X Y)]
+          [(scalar? X) (array-map (curry  f X) Y)]
+          [(scalar? Y) (array-map (curryr f Y) X)]
+          [(equal? (array-shape X) (array-shape Y)) (array-map f X Y)]
           [else (error "dyad-scalar-guard: shape error")])))
 
 
 ;; === HELPERS ===
 
+;; TODO: (eq? d '(1)) is dangerous
+;; TODO: what about the empty vector?
+(define (~scalar? Y)
+  (or (not (array? Y))
+      (let ([d (vector->list (array-shape Y))])
+        (or (eq? d empty) (eq? d '(1))))))
+
+;; TODO: what about the empty vector?
+(define (~array->scalar Y)
+  (cond [(scalar? Y) Y]
+        [(~scalar? Y) (car (array->list Y))]
+        [else (error "~array->scalar: Y must be of rank 0 or 1")]))
+
 (define (boolean->int x)
   (if x 1 0))
 
-(define (scalar? Y)
-  (not (list? Y)))
-
-(define (same-length? X Y)
-  (and (list? X)
-       (list? Y)
-       (eq? (length X) (length Y))))
-
-(define (zip X Y)
-  (if (and (list? X) (list? Y))
-      (for/list ([x X] [y Y])
-        (list x y))
-      (error "zip: expects two lists")))
-
-(define (map-deep f Y)
-  (if (list? Y)
-      (map (curry map-deep f) Y)
-      (f Y)))
-  
 
 ;; === MATH ===
 
@@ -119,7 +72,7 @@
 
 ;; - MINUS
 
-(define minus (function (monad-scalar-guard (curry * -1)) (dyad-scalar-guard -)))
+(define minus (function (monad-scalar-guard -) (dyad-scalar-guard -)))
 
 ;; ÷ DIVIDE
 
@@ -127,8 +80,8 @@
 
 ;; × TIMES
 
+(define (sign-of x) (cond [(< x 0) -1] [(> x 0) 1] [else 0]))
 (define times (function (monad-scalar-guard sign-of) (dyad-scalar-guard *)))
-(define (signof x) (cond [(< x 0) -1] [(> x 0) 1] [else 0]))
 
 ;; ⌈ UPSTILE
 
@@ -136,7 +89,7 @@
 
 ;; ⌊ DOWNSTILE
 
-(define upstile (function (monad-scalar-guard floor) (dyad-scalar-guard min)))
+(define downstile (function (monad-scalar-guard floor) (dyad-scalar-guard min)))
 
 ;; * STAR
 
@@ -144,23 +97,20 @@
 
 ;; ! EXCLAMATION 
 
-;; TODO
-(define exclamation (function (monad-scalar-guard gamma) null)
-(define (binomial X Y) null)
+(define exclamation (function (monad-scalar-guard gamma) (dyad-scalar-guard (curryr binomial))))
 
 ;; | STILE
 
-(define stile (functon (monad-scalar-guard abs) (dyad-scalar-guard modulo)))
+(define (residue X Y)
+  (if (zero? X) 0 (modulo Y X)))
+(define stile (function (monad-scalar-guard abs) (dyad-scalar-guard residue)))
 
-;; ⍟ LOG
+;; ⍟ CIRCLE FILL
 
-(define log (function (monad-scalar-guard log) (dyad-scalar-guard (λ (X Y) (/ (log X) (log Y))))))
+(define circle-fill (function (monad-scalar-guard log) (dyad-scalar-guard (λ (X Y) (/ (log Y) (log X))))))
 
 ;; ○ CIRCLE
 
-;;   ALPHA
-;;   OMEGA
-(define circle (function (monad-scalar-guard (curry * pi) circular-hyperbolic) 
 (define (circular-hyperbolic ⍺ ⍵)
   ((case ⍺
          [(0) (λ (x) (sqrt (- 1 (sqr x))))] ;; pythagorean function
@@ -173,10 +123,25 @@
          [(7) tanh] [(-7) (error "circle: arctanh not implemented yet")] 
          [else (error "circle: left operand must be a value -7 <= x <= 7")])
    ⍵))
+(define circle (function (monad-scalar-guard (curry * pi)) circular-hyperbolic))
 
 ;; ⌹ DOMINO
 
-;; TODO
+(define (matrix-divide X Y)
+  (define (->matrix Y)
+    (if (scalar? Y)
+        (make-array #(1 1) Y)
+        (let ([d (array-dims Y)])
+          (cond [(eq? 0 d) (make-array #(1 1) Y)]
+                [(eq? 1 d) (->col-matrix Y)] 
+                [(eq? 2 d) Y]
+                [else (error "->matrix: array must have dimension < 3")]))))
+  (let ([x (->matrix X)]
+        [y (->matrix Y)])
+    (matrix* (matrix-inverse y) x)))
+    ;; ((inner-product plus times) (matrix-inverse y) x)))
+;; TODO apl guide demands inversion of nonsquare matrices (using least squares?) ( ಠ╭╮ಠ)  
+(define domino (function (λ (Y) (if (scalar? Y) (/ Y) (matrix-inverse Y))) matrix-divide))
 
 ;; ⊥ UP TACK
 
@@ -184,17 +149,15 @@
 
 ;; ? QUESTION MARK
 
-(define (function (monad-scalar-guard roll) deal))
 (define (roll Y) (ceiling (random Y)))
 (define (deal X Y)
-  (if (and (scalar? X) (scalar? Y))
-      (if (<= X Y)
-          (take (shuffle (range 1 (add1 Y))) X)
-          (error "deal: X must be less than or equal to Y"))
-      (if (or (and (list? X) (> (length X) 1))
-              (and (list? Y) (> (length Y) 1)))
-          (error "deal: X and Y must be rank 1 or 0")
-          (deal (if (list? X) (car X) X) (if (list? Y) (car Y) Y)))))
+  (if (and (~scalar? X) (~scalar? Y))
+      (let ([x (~array->scalar X)][y (~array->scalar Y)])
+        (if (<= x y)
+            (take (shuffle (range 1 (add1 y))) x)
+            (error "deal: X must be less than or equal to Y")))
+      (error "deal: X and Y must be of rank 0 or 1")))
+(define question (function (monad-scalar-guard roll) deal))
 
 
 ;; === LOGIC & COMPARISON ===
@@ -230,7 +193,7 @@
 ;; = EQUAL
 
 ;; TODO: only supposed to compare elements, not arrays
-(define equal (function null (dyad-scalar-guard (compose booolean->int eq?))))
+(define equal (function null (dyad-scalar-guard (compose boolean->int eq?))))
 
 ;; ≠ NOT EQUAL
 
@@ -239,12 +202,12 @@
 ;; ≡ EQUAL UNDERBAR
 
 ;; TODO
-(define equal-underbar (function depth (compose boolean->int eq?)))
 (define (depth X Y) 0) 
+(define equal-underbar (function depth (compose boolean->int eq?)))
 
 ;; ≢ EQUAL UNDERBAR SLASH
 
-(define equal-underbar (function null (compose boolean->int not eq?)))
+(define equal-underbar-slash (function null (compose boolean->int not eq?)))
 
 ;; === STRUCTURAL ===
 
@@ -271,12 +234,11 @@
 ;; ∊  EPSILON
 
 ;; TODO: make sure the array is flattened in the right order
-(define epsilon (function flatten membership))
-(define (membership X Y) 0)
-;; TODO: the result is always the same shape as the left-hand argument
-  ;; (cond [(scalar? Y) (error "membership: Y must be a vector")]
-  ;;       [(scalar? X) (boolean->int (member X Y))]
-  ;;       [else (map (curryr (compose boolean->int member) Y) X)]))
+;; (define (membership X Y)
+;;   (cond [(scalar? Y) (error "membership: Y must be a vector")]
+;;         [(scalar? X) (boolean->int (member X Y))]
+;;         [else (map (compose boolean->int (curryr member Y)) X)]))
+;; (define epsilon (function flatten membership))
 
 ;; === SELECTION & SETS ===
 ;; ⌷  SQUAD
@@ -295,20 +257,19 @@
 
 ;; ⍳  IOTA
 
-(define iota (function index-gen index-of))
 (define (index-gen Y)
-  (cond [(zero? Y) empty]
-        [(scalar? Y) (range 1 (add1 Y))]
-        [(eq? 1 (length Y)) (index-gen (car Y))]
-        [else (error "index-gen: expects scalar or one-element vector")]))
+  (if (~scalar? Y)
+      (let ([y (~array->scalar Y)])
+        (build-array (vector y) (compose add1 car vector->list)))
+      (error "index-gen: expects scalar or one-element vector")))
 (define (index-of X Y)
-  (define (find a-list an-item)
-    (for/first ([x a-list] #:when (eq? x an-item)) x))
-  (cond [(scalar? X) (index-of (list X) Y)]
-        [(scalar? Y) (let ([x (find X Y)])
-                       (if x x (add1 (length X))))]
-        [else (map (curry find X) Y)]))
-        
+  (define (find-index X y)
+    (let ([e (for/first ([i (in-naturals 1)][x (in-array X)] #:when (eq? x y)) i)])
+      (if (eq? #f e) (add1 (array-size X)) e)))
+  (cond [(or (scalar? X) (> 1 (array-dims X))) (error "index-of: X must be a vector")]
+        [(array? Y) (array-map (curry find-index X) Y)] ;; TODO: double-check the broadcasting behavior here
+        [else (find-index X Y)]))
+(define iota (function index-gen index-of))
 
 ;; ∊  EPSILON
 
