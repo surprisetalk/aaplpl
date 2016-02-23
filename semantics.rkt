@@ -41,7 +41,7 @@
     (cond [(and (scalar? X) (scalar? Y))  (f X Y)]
           [(scalar? X) (array-map (curry  f X) Y)]
           [(scalar? Y) (array-map (curryr f Y) X)]
-          [(equal? (array-shape X) (array-shape Y)) (array-map f X Y)]
+          [(equal? (array-shape X) (array-shape Y)) (array-map (dyad-scalar-guard f) X Y)] ;; TODO: recursive scalar guard?
           [else (error "dyad-scalar-guard: shape error")])))
 
 
@@ -193,21 +193,24 @@
 ;; = EQUAL
 
 ;; TODO: only supposed to compare elements, not arrays
-(define equal (function null (dyad-scalar-guard (compose boolean->int eq?))))
+(define equal (function null (dyad-scalar-guard (compose boolean->int equal?))))
 
 ;; ≠ NOT EQUAL
 
-(define not-equal (function null (dyad-scalar-guard (compose boolean->int not eq?))))
+(define not-equal (function null (dyad-scalar-guard (compose boolean->int not equal?))))
 
 ;; ≡ EQUAL UNDERBAR
 
 ;; TODO
-(define (depth X Y) 0) 
-(define equal-underbar (function depth (compose boolean->int eq?)))
+(define (depth Y)
+  (if (scalar? Y)
+      0
+      (add1 (array-all-max (array-map depth Y)))))
+(define equal-underbar (function depth (compose boolean->int equal?)))
 
 ;; ≢ EQUAL UNDERBAR SLASH
 
-(define equal-underbar-slash (function null (compose boolean->int not eq?)))
+(define equal-underbar-slash (function null (compose boolean->int not equal?)))
 
 ;; === STRUCTURAL ===
 
@@ -238,7 +241,8 @@
 ;;   (cond [(scalar? Y) (error "membership: Y must be a vector")]
 ;;         [(scalar? X) (boolean->int (member X Y))]
 ;;         [else (map (compose boolean->int (curryr member Y)) X)]))
-;; (define epsilon (function flatten membership))
+;; TODO: empty vectors not supposed to appear in the result
+;; (define epsilon (function enlist membership))
 
 ;; === SELECTION & SETS ===
 ;; ⌷  SQUAD
