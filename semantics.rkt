@@ -249,6 +249,17 @@
 
 ;; ⍴  RHO
 
+
+(define (shape-of Y)
+  (if (scalar? Y)
+      (array #[])
+      (vector->array (array-shape Y)))) ;; TODO vector->array necessary?
+
+(define (reshape X Y)
+  #f)
+
+(define rho (function shape-of reshape))
+
 ;; ,  COMMA
 
 ;; ⍪  COMMA BAR
