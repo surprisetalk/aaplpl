@@ -60,9 +60,39 @@
         [(~scalar? Y) (car (array->list Y))]
         [else (error "~array->scalar: Y must be of rank 0 or 1")]))
 
+(define (array-member x Y)
+  (array-ormap (curry eq? x) Y))
+
+(define (array-reverse Y)
+  (if (or (scalar? Y) (> (array-dims Y) 1))
+      (error "array-reverse: Y must be a vector")
+      (array-slice-ref Y (list (:: #f #f -1)))))
+
+(define (one? Y)
+  (eq? 1 Y))
+
 (define (boolean->int x)
   (if x 1 0))
 
+(define (logical-function f)
+  (λ (X Y)
+    (if (and (or (zero? X) (one? X))
+             (or (zero? Y) (one? Y)))
+        (boolean->int (f (one? X) (one? Y)))
+        (error "logical-function: elements must be 0s and 1s"))))
+
+;; filters members of X based on (f x Y)
+(define (array-all-filter f X Y [start (array #[])])
+  (if (and (array? X) (> 1 (array-dims X)))
+      (error "array-all-filter: X must be a scalar or vector")
+        (array-reverse
+         (array-all-fold (if (scalar? X) (make-array #(1) X) X)
+                         (λ (x y)
+                           (array-append* (list (if (f x Y)
+                                                    (array x)
+                                                    (array #[]))
+                                                y)))
+                         (array-reverse start)))))
 
 ;; === MATH ===
 
@@ -164,15 +194,19 @@
 
 ;; ∧ LOGICAL AND
 
-;; NOTE: (and 3 4 5) -> 5, (and 3 0 5) -> 0
+(define logical-and (function null (dyad-scalar-guard (logical-function (λ (X Y) (and X Y))))))
 
 ;; ∨ LOGICAL OR
 
-;; NOTE: (and 3 4 5) -> 3, (and 0 0 0) -> 0
+(define logical-or (function null (dyad-scalar-guard (logical-function (λ (X Y) (or X Y))))))
 
 ;; ⍲ LOGICAL NAND
 
+(define logical-nand (function null (dyad-scalar-guard (logical-function (λ (X Y) (nand X Y))))))
+
 ;; ⍱ LOGICAL NOR
+
+(define logical-nor (function null (dyad-scalar-guard (logical-function (λ (X Y) (nor X Y))))))
 
 ;; < LESS THAN
 
@@ -201,7 +235,6 @@
 
 ;; ≡ EQUAL UNDERBAR
 
-;; TODO
 (define (depth Y)
   (if (scalar? Y)
       0
@@ -236,26 +269,76 @@
 
 ;; ∊  EPSILON
 
-;; TODO: make sure the array is flattened in the right order
-;; (define (membership X Y)
-;;   (cond [(scalar? Y) (error "membership: Y must be a vector")]
-;;         [(scalar? X) (boolean->int (member X Y))]
-;;         [else (map (compose boolean->int (curryr member Y)) X)]))
-;; TODO: empty vectors not supposed to appear in the result
-;; (define epsilon (function enlist membership))
+(define (enlist Y)
+  (define (array-flatten* Y)
+    (if (scalar? Y)
+        (array Y)
+        (array-all-fold Y
+                        (λ (x y)
+                          (array-append* (list (array-flatten* x) y)))
+                        (array #[]))))
+  (array-reverse (array-flatten* Y)))
+
 
 ;; === SELECTION & SETS ===
+
 ;; ⌷  SQUAD
+
 ;; ⊃  RIGHT SHOE
+
 ;; /  SLASH
+
 ;; ⌿  SLASH BAR
+
 ;; \  BACKSLASH
+
 ;; ⍀  BACKSLASH BAR
+
 ;; ~  TILDE
+
+(define (integer-not Y)
+  (if (or (eq? Y 0) (eq? Y 1))
+      (if (zero? Y) 1 0) 
+      (error "integer-not: elements must be 1 or 0")))
+
+(define (without X Y)
+  (array-all-filter (compose not array-member) X Y))
+
+(define tilde (function (monad-scalar-guard integer-not) without))
+
 ;; ∪  UP SHOE
+
+(define (unique Y)
+  (if (and (array? Y) (eq? 1 (array-dims Y)))
+      (list->array (remove-duplicates (array->list Y)))
+      (error "unique: argument must be a vector")))
+
+(define (union X Y)
+  (if (and (array? X) (> 1 (array-dims X)))
+      (error "union: X must be a scalar or vector")
+      (let ([X (if (scalar? X) (make-array #(1) X) (array-reverse X))])
+        (array-reverse
+         (array-all-fold Y
+                         (λ (x y)
+                           (array-append* (list (if (array-member x X)
+                                                    (array #[])
+                                                    (array x))
+                                                y)))
+                         X)))))
+
+(define up-shoe (function unique union))
+
 ;; ∩  DOWN SHOE
+
+(define (intersection X Y)
+  (array-all-filter array-member X Y))
+
+(define down-shoe (function null intersection))
+
 ;; ⊣  LEFT TACK
+
 ;; ⊢  RIGHT TACK
+
 
 ;; === SEARCH & SORT ===
 
@@ -277,7 +360,18 @@
 
 ;; ∊  EPSILON
 
+(define (membership X Y)
+  (cond [(scalar? Y) (error "membership: Y must be a vector")]
+        [(scalar? X) (boolean->int (array-member X Y))]
+        [else (array-map (compose boolean->int (curryr array-member Y)) X)]))
+
+(define epsilon (function enlist membership))
+
 ;; ⍷  EPSILON UNDERBAR
+
+;; TODO
+;; (define (find X Y)
+;; (define epsilon-underbar (function find null))
 
 ;; ⍋  GRADE UP
 
