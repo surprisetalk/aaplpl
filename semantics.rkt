@@ -7,6 +7,15 @@
 
 ;; === NOTES ===
 
+;; the axis operator should "use" suboperators, rather than vice-versa
+
+;; crank out the easy ones
+
+;; confront the lack of array prototypes :(
+
+;; ensure that all indexes begin at 1
+
+;; TODO: is literally everything element supposed to be an array? such that "scalars" are actually arrays of dimension '#() ?
 
 ;; === META ===
 
@@ -63,10 +72,10 @@
 (define (array-member x Y)
   (array-ormap (curry eq? x) Y))
 
-(define (array-reverse Y)
-  (if (or (scalar? Y) (> (array-dims Y) 1))
-      (error "array-reverse: Y must be a vector")
-      (array-slice-ref Y (list (:: #f #f -1)))))
+(define (array-flip Y)
+  (if (and (array? Y) (> (array-dims Y) 1))
+      (error "array-flip: Y must be a vector or scalar")
+      (array-slice-ref (if (scalar? Y) (array Y) Y) (list (:: #f #f -1)))))
 
 (define (one? Y)
   (eq? 1 Y))
@@ -85,14 +94,14 @@
 (define (array-all-filter f X Y [start (array #[])])
   (if (and (array? X) (> 1 (array-dims X)))
       (error "array-all-filter: X must be a scalar or vector")
-        (array-reverse
+        (array-flip
          (array-all-fold (if (scalar? X) (make-array #(1) X) X)
                          (λ (x y)
                            (array-append* (list (if (f x Y)
                                                     (array x)
                                                     (array #[]))
                                                 y)))
-                         (array-reverse start)))))
+                         (array-flip start)))))
 
 ;; === MATH ===
 
@@ -255,16 +264,41 @@
       (array #[])
       (vector->array (array-shape Y)))) ;; TODO vector->array necessary?
 
+;; TODO: what if array-dims > 1
 (define (reshape X Y)
-  #f)
+  (if (and (array? X) (< 1 (array-dims X)))
+      (error "reshape: X must be scalar or vector")
+      (for/array #:shape (if (scalar? X) (vector X) (array->vector X))
+                 ([i (in-cycle (in-array (if (scalar? Y) (array Y) Y)))])
+                 i)))
 
 (define rho (function shape-of reshape))
 
 ;; ,  COMMA
 
+;; TODO: ravel with axis: array-axis-expand & array-axis-reduce
+(define (ravel Y)
+  (array-flatten (if (array? Y) Y (array Y))))
+
+;; TODO
+(define (catenate X Y) #f)
+
+;; TODO
+(define (laminate X Y) #f)
+
+(define comma (function ravel null))
+
 ;; ⍪  COMMA BAR
 
 ;; ⌽  CIRCLE STILE
+
+;; TODO: slicing might be helpful
+(define (array-reverse Y) #f)
+
+;; TODO: there may be a rotate function
+(define (rotate Y) #f)
+
+(define circle-stile (function array-reverse rotate))
 
 ;; ⊖  CIRCLE BAR
 
@@ -272,9 +306,34 @@
 
 ;; ↑  UP ARROW
 
+(define (array-first Y)
+  (if (and (array? Y) (eq? 0 (array-length Y)))
+      0 ;; TODO should be based on array prototype
+      (array-ref (ravel Y) #(0))))
+
+;; TODO: (array-slice-ref Y (if (positive? X) (:: 0 X 1) (:: (- (array-length Y) X) -1)))
+(define (array-take X Y) #f)
+
+(define up-arrow (function array-first array-take))
+
 ;; ↓  DOWN ARROW
 
+;; TODO
+(define (array-drop X Y) #f)
+
+(define down-arrow (function null array-drop))
+
 ;; ⊂  LEFT SHOE
+
+(define (enclose Y)
+  (if (array? Y)
+      (array Y)
+      Y))
+
+;; TODO
+(define (array-partition X Y) #f)
+
+(define left-shoe (function enclose array-partition))
 
 ;; ≡  EQUAL UNDERBAR
 
@@ -288,7 +347,7 @@
                         (λ (x y)
                           (array-append* (list (array-flatten* x) y)))
                         (array #[]))))
-  (array-reverse (array-flatten* Y)))
+  (array-flip (array-flatten* Y)))
 
 
 ;; === SELECTION & SETS ===
@@ -296,6 +355,14 @@
 ;; ⌷  SQUAD
 
 ;; ⊃  RIGHT SHOE
+
+;; TODO: review what "scalar" is supposed to mean
+(define (disclose Y) #f)
+
+;; TODO
+(define (pick X Y) #f)
+
+(define right-shoe (function disclose pick))
 
 ;; /  SLASH
 
@@ -327,8 +394,8 @@
 (define (union X Y)
   (if (and (array? X) (> 1 (array-dims X)))
       (error "union: X must be a scalar or vector")
-      (let ([X (if (scalar? X) (make-array #(1) X) (array-reverse X))])
-        (array-reverse
+      (let ([X (if (scalar? X) (make-array #(1) X) (array-flip X))])
+        (array-flip
          (array-all-fold Y
                          (λ (x y)
                            (array-append* (list (if (array-member x X)
